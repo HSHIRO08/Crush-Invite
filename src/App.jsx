@@ -178,20 +178,53 @@ export default function CrushDateInvite() {
       throw new Error('Không tìm thấy thiệp lịch hẹn để chụp.');
     }
 
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+
     return html2canvas(cardRef.current, {
       backgroundColor: '#fff7fb',
-      scale: Math.min(window.devicePixelRatio || 1, 2),
-      useCORS: true,
+      scale: Math.min(window.devicePixelRatio || 1, 1.5),
+      useCORS: false,
+      allowTaint: false,
+      logging: false,
     });
   };
+
+  const canvasToBlob = (canvas) =>
+    new Promise((resolve, reject) => {
+      if (canvas.toBlob) {
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(blob);
+            return;
+          }
+          reject(new Error('Không thể chuyển thiệp thành file ảnh.'));
+        }, 'image/png');
+        return;
+      }
+
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        const byteString = atob(dataUrl.split(',')[1]);
+        const bytes = Uint8Array.from(byteString, (character) => character.charCodeAt(0));
+        resolve(new Blob([bytes], { type: 'image/png' }));
+      } catch (error) {
+        reject(error);
+      }
+    });
 
   const downloadInvite = async () => {
     try {
       setShareStatus('capturing');
       const canvas = await createInviteImage();
+      const imageUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.download = 'lich-hen-cua-hai-dua.png';
-      link.href = canvas.toDataURL('image/png');
+      link.href = imageUrl;
+      link.rel = 'noopener';
       link.click();
       setShareStatus('downloaded');
     } catch (error) {
@@ -204,15 +237,13 @@ export default function CrushDateInvite() {
     try {
       setShareStatus('capturing');
       const canvas = await createInviteImage();
-      const blob = await new Promise((resolve, reject) => {
-        canvas.toBlob((result) => {
-          if (result) resolve(result);
-          else reject(new Error('Không thể tạo file ảnh lịch hẹn.'));
-        }, 'image/png');
-      });
+      const blob = await canvasToBlob(canvas);
       const file = new File([blob], 'lich-hen-cua-hai-dua.png', { type: 'image/png' });
+      const canShareFile =
+        navigator.share &&
+        (!navigator.canShare || navigator.canShare({ files: [file] }));
 
-      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      if (canShareFile) {
         await navigator.share({
           title: 'Lịch hẹn của hai đứa mình 💖',
           text: 'Lịch hẹn của hai đứa mình nè 💌',
