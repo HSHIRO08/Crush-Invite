@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { Heart, Sparkles, Clock, MapPin, Utensils, Check } from 'lucide-react';
+import { useRef, useState, useMemo } from 'react';
+import html2canvas from 'html2canvas';
+import { Heart, Sparkles, Clock, MapPin, Utensils, Check, Download, Share2 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
 /* Static data & content                                              */
@@ -20,10 +21,13 @@ const DURATIONS = [
 ];
 
 const PLACES = [
-  { id: 'vmqtg', label: 'Văn Miếu Quốc Tử Giám' },
+  { id: 'vmqtg', label: 'WorkShop nào đó ở HN' },
   { id: 'btha', label: 'Bảo tàng Hà Nội' },
   { id: 'btls', label: 'Bảo tàng Lịch sử Quân sự Việt Nam' },
   { id: 'ntht', label: 'Nhà tù Hỏa Lò' },
+  { id: 'aeon-mall', label: 'Aeon Mall' },
+  { id: 'shopping-mall', label: 'Mua đồ ở trung tâm thương mại' },
+  { id: 'cinema', label: 'Xem phim' },
 ];
 
 const FOODS = [
@@ -46,14 +50,17 @@ const TIME_OF_DAY = [
 function FloatingHearts({ count, intense }) {
   const hearts = useMemo(
     () =>
-      Array.from({ length: count }).map((_, i) => ({
-        id: i,
-        left: Math.random() * 100,
-        delay: Math.random() * 8,
-        duration: 6 + Math.random() * 6,
-        size: 14 + Math.random() * 18,
-        color: HEART_COLORS[Math.floor(Math.random() * HEART_COLORS.length)],
-      })),
+      Array.from({ length: count }).map((_, i) => {
+        const variation = (offset) => ((i * 37 + count * 17 + offset * 23) % 100) / 100;
+        return {
+          id: i,
+          left: variation(1) * 100,
+          delay: variation(2) * 8,
+          duration: 6 + variation(3) * 6,
+          size: 14 + variation(4) * 18,
+          color: HEART_COLORS[Math.floor(variation(5) * HEART_COLORS.length)],
+        };
+      }),
     [count]
   );
 
@@ -150,6 +157,8 @@ export default function CrushDateInvite() {
   const [timeOfDay, setTimeOfDay] = useState(null);
   const [places, setPlaces] = useState([]);
   const [food, setFood] = useState(null);
+  const [shareStatus, setShareStatus] = useState(null);
+  const cardRef = useRef(null);
 
   const togglePlace = (id) =>
     setPlaces((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
@@ -159,6 +168,70 @@ export default function CrushDateInvite() {
   const timeOfDayLabel = TIME_OF_DAY.find((t) => t.id === timeOfDay)?.label;
   const foodLabel = FOODS.find((f) => f.id === food)?.label;
   const placeLabels = PLACES.filter((p) => places.includes(p.id)).map((p) => p.label);
+
+  const handleSubmit = () => {
+    setStep(3);
+  };
+
+  const createInviteImage = async () => {
+    if (!cardRef.current) {
+      throw new Error('Không tìm thấy thiệp lịch hẹn để chụp.');
+    }
+
+    return html2canvas(cardRef.current, {
+      backgroundColor: '#fff7fb',
+      scale: Math.min(window.devicePixelRatio || 1, 2),
+      useCORS: true,
+    });
+  };
+
+  const downloadInvite = async () => {
+    try {
+      setShareStatus('capturing');
+      const canvas = await createInviteImage();
+      const link = document.createElement('a');
+      link.download = 'lich-hen-cua-hai-dua.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      setShareStatus('downloaded');
+    } catch (error) {
+      console.error('Không thể tạo ảnh lịch hẹn:', error);
+      setShareStatus('error');
+    }
+  };
+
+  const shareInvite = async () => {
+    try {
+      setShareStatus('capturing');
+      const canvas = await createInviteImage();
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob((result) => {
+          if (result) resolve(result);
+          else reject(new Error('Không thể tạo file ảnh lịch hẹn.'));
+        }, 'image/png');
+      });
+      const file = new File([blob], 'lich-hen-cua-hai-dua.png', { type: 'image/png' });
+
+      if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+        await navigator.share({
+          title: 'Lịch hẹn của hai đứa mình 💖',
+          text: 'Lịch hẹn của hai đứa mình nè 💌',
+          files: [file],
+        });
+        setShareStatus('shared');
+      } else {
+        await downloadInvite();
+        setShareStatus('fallback');
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Không thể chia sẻ lịch hẹn:', error);
+        setShareStatus('error');
+      } else {
+        setShareStatus(null);
+      }
+    }
+  };
 
   return (
     <div
@@ -287,7 +360,7 @@ export default function CrushDateInvite() {
               className="mb-8 text-center text-2xl font-bold text-pink-600 sm:text-3xl"
               style={{ fontFamily: "'Baloo 2', sans-serif" }}
             >
-              Thiết kế ngày hẹn hò (17/06/2026)
+              Thiết kế ngày hẹn hò (29/06/2024) của hai đứa mình nha! 💖
             </h2>
 
             <section className="mb-7">
@@ -362,7 +435,7 @@ export default function CrushDateInvite() {
               <button
                 type="button"
                 disabled={!canSubmit}
-                onClick={() => setStep(3)}
+                onClick={handleSubmit}
                 className={`w-full rounded-full px-8 py-3 text-base font-bold shadow-lg transition-all duration-200 sm:w-auto sm:text-lg ${
                   canSubmit
                     ? 'bg-pink-500 text-white shadow-pink-300 hover:scale-105 active:scale-95'
@@ -381,6 +454,11 @@ export default function CrushDateInvite() {
                     : 'Điền đầy đủ thông tin nha 😊'}
                 </p>
               )}
+              {canSubmit && (
+                <p className="text-center text-xs text-rose-400">
+                  Sau khi bấm, anh sẽ có một tấm thiệp lịch hẹn thật xinh 💌
+                </p>
+              )}
             </div>
           </div>
         )}
@@ -396,41 +474,73 @@ export default function CrushDateInvite() {
               Yeahhh, chốt đơn thành công! 🎉
             </h2>
             <p className="mb-6 text-rose-400">Lịch hẹn của hai đứa mình đây nè~</p>
-
-            <div className="mx-auto max-w-md space-y-3 rounded-2xl border border-pink-100 bg-pink-50 p-5 text-left">
-              <div className="flex items-start gap-3">
-                <Clock size={18} className="mt-0.5 shrink-0 text-pink-500" />
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-pink-400">Thời gian</p>
-                  <p className="font-semibold text-rose-600">
-                    {durationLabel}
-                    {timeOfDayLabel && ` - ${timeOfDayLabel}`}
-                  </p>
+            <div
+              ref={cardRef}
+              className="mx-auto max-w-md rounded-3xl border-2 border-pink-200 bg-gradient-to-br from-white via-pink-50 to-rose-100 p-6 text-left shadow-lg shadow-pink-100"
+            >
+              <div className="mb-5 text-center">
+                <p className="text-sm font-bold uppercase tracking-[0.25em] text-pink-400">Our date plan</p>
+                <p className="mt-2 text-2xl font-extrabold text-pink-600" style={{ fontFamily: "'Baloo 2', sans-serif" }}>
+                  Lịch hẹn của hai đứa mình 💖
+                </p>
+              </div>
+              <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <Clock size={18} className="mt-0.5 shrink-0 text-pink-500" />
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-pink-400">Thời gian</p>
+                    <p className="font-semibold text-rose-600">
+                      {durationLabel}
+                      {timeOfDayLabel && ` - ${timeOfDayLabel}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <MapPin size={18} className="mt-0.5 shrink-0 text-pink-500" />
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-pink-400">Điểm đến</p>
+                    <p className="font-semibold text-rose-600">
+                      {placeLabels.length ? placeLabels.join(', ') : 'Cứ để anh dẫn đi đại nha 😆'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Utensils size={18} className="mt-0.5 shrink-0 text-pink-500" />
+                  <div>
+                    <p className="text-xs uppercase tracking-wide text-pink-400">Gu ăn uống</p>
+                    <p className="font-semibold text-rose-600">{foodLabel}</p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <MapPin size={18} className="mt-0.5 shrink-0 text-pink-500" />
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-pink-400">Điểm đến</p>
-                  <p className="font-semibold text-rose-600">
-                    {placeLabels.length ? placeLabels.join(', ') : 'Cứ để anh dẫn đi đại nha 😆'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Utensils size={18} className="mt-0.5 shrink-0 text-pink-500" />
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-pink-400">Gu ăn uống</p>
-                  <p className="font-semibold text-rose-600">{foodLabel}</p>
-                </div>
-              </div>
+              <p className="mt-6 text-center font-bold text-pink-500" style={{ fontFamily: "'Baloo 2', sans-serif" }}>
+                Hẹn gặp em vào ngày mai nhé hihi 🌸
+              </p>
             </div>
 
-            <p
-              className="shimmer-text mt-8 bg-gradient-to-r from-pink-500 via-fuchsia-500 to-pink-500 bg-clip-text text-2xl font-extrabold text-transparent sm:text-3xl"
-              style={{ fontFamily: "'Baloo 2', sans-serif" }}
-            >
-              Hẹn gặp em vào ngày mai nhé hihi 🌸
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <button
+                type="button"
+                onClick={shareInvite}
+                disabled={shareStatus === 'capturing'}
+                className="flex items-center gap-2 rounded-full bg-pink-500 px-5 py-3 font-bold text-white shadow-lg shadow-pink-200 transition hover:scale-105 disabled:cursor-wait disabled:opacity-60"
+              >
+                <Share2 size={18} /> Chia sẻ thiệp
+              </button>
+              <button
+                type="button"
+                onClick={downloadInvite}
+                disabled={shareStatus === 'capturing'}
+                className="flex items-center gap-2 rounded-full border-2 border-pink-300 bg-white px-5 py-3 font-bold text-pink-600 transition hover:scale-105 disabled:cursor-wait disabled:opacity-60"
+              >
+                <Download size={18} /> Tải ảnh xuống
+              </button>
+            </div>
+            <p className="mt-3 min-h-5 text-sm text-pink-500">
+              {shareStatus === 'capturing' && 'Đang tạo tấm thiệp xinh cho mình... ✨'}
+              {shareStatus === 'shared' && 'Đã mở bảng chia sẻ rồi đó 💌'}
+              {shareStatus === 'downloaded' && 'Đã tải thiệp xuống, giờ gửi đi mọi nền tảng nha 💌'}
+              {shareStatus === 'fallback' && 'Thiết bị chưa hỗ trợ chia sẻ trực tiếp, ảnh đã được tải xuống 💌'}
+              {shareStatus === 'error' && 'Chưa tạo được ảnh. Bạn thử lại giúp mình nha 🥺'}
             </p>
           </div>
         )}
@@ -438,4 +548,3 @@ export default function CrushDateInvite() {
     </div>
   );
 }
-
