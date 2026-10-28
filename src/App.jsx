@@ -1,5 +1,4 @@
 import { useRef, useState, useMemo } from 'react';
-import html2canvas from 'html2canvas';
 import { Heart, Sparkles, Clock, MapPin, Utensils, Check, Download, Share2 } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
@@ -173,24 +172,85 @@ export default function CrushDateInvite() {
     setStep(3);
   };
 
+  const escapeXml = (value) =>
+    String(value)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+
+  const wrapText = (value, maxLength = 34) => {
+    const words = String(value).split(' ');
+    const lines = [];
+    let line = '';
+
+    words.forEach((word) => {
+      const nextLine = line ? `${line} ${word}` : word;
+      if (nextLine.length > maxLength && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = nextLine;
+      }
+    });
+    if (line) lines.push(line);
+    return lines;
+  };
+
   const createInviteImage = async () => {
     if (!cardRef.current) {
       throw new Error('Không tìm thấy thiệp lịch hẹn để chụp.');
     }
 
-    if (document.fonts?.ready) {
-      await document.fonts.ready;
-    }
+    const lines = [
+      ['Thời gian', `${durationLabel}${timeOfDayLabel ? ` - ${timeOfDayLabel}` : ''}`],
+      ['Điểm đến', placeLabels.length ? placeLabels.join(', ') : 'Cứ để anh dẫn đi đại nha 😆'],
+      ['Gu ăn uống', foodLabel],
+    ];
+    const lineMarkup = lines
+      .flatMap(([label, value], index) => {
+        const valueLines = wrapText(value);
+        const y = 270 + index * 190;
+        return [
+          `<text x="100" y="${y}" fill="#be185d" font-size="22" font-weight="700">${escapeXml(label.toUpperCase())}</text>`,
+          ...valueLines.map(
+            (line, lineIndex) =>
+              `<text x="100" y="${y + 42 + lineIndex * 34}" fill="#111827" font-size="28">${escapeXml(line)}</text>`
+          ),
+        ];
+      })
+      .join('');
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="800" height="920" viewBox="0 0 800 920">
+        <rect width="800" height="920" rx="42" fill="#fff7fb"/>
+        <rect x="18" y="18" width="764" height="884" rx="34" fill="#fff" stroke="#f9a8d4" stroke-width="5"/>
+        <circle cx="400" cy="92" r="34" fill="#ec4899"/>
+        <text x="400" y="104" text-anchor="middle" fill="#fff" font-size="34">♥</text>
+        <text x="400" y="170" text-anchor="middle" fill="#be185d" font-size="20" font-weight="700" letter-spacing="5">OUR DATE PLAN</text>
+        <text x="400" y="220" text-anchor="middle" fill="#111827" font-size="36" font-weight="700">Lịch hẹn của hai đứa mình</text>
+        ${lineMarkup}
+        <text x="400" y="850" text-anchor="middle" fill="#111827" font-size="26" font-weight="700">Hẹn gặp em vào ngày mai nhé hihi 🌸</text>
+      </svg>
+    `;
+    const image = new Image();
+    const imageUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-
-    return html2canvas(cardRef.current, {
-      backgroundColor: '#fff7fb',
-      scale: Math.min(window.devicePixelRatio || 1, 1.5),
-      useCORS: false,
-      allowTaint: false,
-      logging: false,
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('Safari không thể đọc ảnh thiệp.'));
+      image.src = imageUrl;
     });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 800;
+    canvas.height = 920;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Trình duyệt không hỗ trợ tạo ảnh.');
+    }
+    context.drawImage(image, 0, 0);
+    return canvas;
   };
 
   const canvasToBlob = (canvas) =>
@@ -510,8 +570,8 @@ export default function CrushDateInvite() {
               className="mx-auto max-w-md rounded-3xl border-2 border-pink-200 bg-gradient-to-br from-white via-pink-50 to-rose-100 p-6 text-left shadow-lg shadow-pink-100"
             >
               <div className="mb-5 text-center">
-                <p className="text-sm font-bold uppercase tracking-[0.25em] text-pink-400">Our date plan</p>
-                <p className="mt-2 text-2xl font-extrabold text-pink-600" style={{ fontFamily: "'Baloo 2', sans-serif" }}>
+                <p className="text-sm font-bold uppercase tracking-[0.25em] text-gray-700">Our date plan</p>
+                <p className="mt-2 text-2xl font-extrabold text-black" style={{ fontFamily: "'Baloo 2', sans-serif" }}>
                   Lịch hẹn của hai đứa mình 💖
                 </p>
               </div>
@@ -519,8 +579,8 @@ export default function CrushDateInvite() {
                 <div className="flex items-start gap-3">
                   <Clock size={18} className="mt-0.5 shrink-0 text-pink-500" />
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-pink-400">Thời gian</p>
-                    <p className="font-semibold text-rose-600">
+                    <p className="text-xs uppercase tracking-wide text-gray-700">Thời gian</p>
+                    <p className="font-semibold text-black">
                       {durationLabel}
                       {timeOfDayLabel && ` - ${timeOfDayLabel}`}
                     </p>
@@ -529,8 +589,8 @@ export default function CrushDateInvite() {
                 <div className="flex items-start gap-3">
                   <MapPin size={18} className="mt-0.5 shrink-0 text-pink-500" />
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-pink-400">Điểm đến</p>
-                    <p className="font-semibold text-rose-600">
+                    <p className="text-xs uppercase tracking-wide text-gray-700">Điểm đến</p>
+                    <p className="font-semibold text-black">
                       {placeLabels.length ? placeLabels.join(', ') : 'Cứ để anh dẫn đi đại nha 😆'}
                     </p>
                   </div>
@@ -538,12 +598,12 @@ export default function CrushDateInvite() {
                 <div className="flex items-start gap-3">
                   <Utensils size={18} className="mt-0.5 shrink-0 text-pink-500" />
                   <div>
-                    <p className="text-xs uppercase tracking-wide text-pink-400">Gu ăn uống</p>
-                    <p className="font-semibold text-rose-600">{foodLabel}</p>
+                    <p className="text-xs uppercase tracking-wide text-gray-700">Gu ăn uống</p>
+                    <p className="font-semibold text-black">{foodLabel}</p>
                   </div>
                 </div>
               </div>
-              <p className="mt-6 text-center font-bold text-pink-500" style={{ fontFamily: "'Baloo 2', sans-serif" }}>
+              <p className="mt-6 text-center font-bold text-black" style={{ fontFamily: "'Baloo 2', sans-serif" }}>
                 Hẹn gặp em vào ngày mai nhé hihi 🌸
               </p>
             </div>
